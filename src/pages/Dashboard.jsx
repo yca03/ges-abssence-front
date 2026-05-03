@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
+import { Chart, registerables } from 'chart.js'
 import './Dashboard.css'
 import {
   enseignantService,
@@ -8,6 +9,8 @@ import {
   presenceService,
   justificationService,
 } from '../services/api'
+
+Chart.register(...registerables)
 
 const normalize = (data) => {
   if (!data) return []
@@ -27,8 +30,9 @@ export default function Dashboard() {
   const lineChart  = useRef(null)
   const donutChart = useRef(null)
 
-  const [loading, setLoading] = useState(true)
-  const [stats, setStats] = useState({
+  const [loading, setLoading]         = useState(true)
+  const [chartData, setChartData]     = useState(null)
+  const [stats, setStats]             = useState({
     enseignants: 0, etudiants: 0, filieres: 0,
     absences: 0, justifiees: 0, tauxPresence: 0
   })
@@ -36,125 +40,7 @@ export default function Dashboard() {
   const [absParMatiere, setAbsParMatiere] = useState([])
   const [activity, setActivity]           = useState([])
 
-  const buildCharts = async (absences, presences, nbJustifiees, justifs) => {
-    await new Promise(resolve => setTimeout(resolve, 100))
-
-    if (typeof window.Chart === 'undefined') {
-      await new Promise((resolve, reject) => {
-        const existing = document.querySelector('script[data-chartjs]')
-        if (existing) { resolve(); return }
-        const s = document.createElement('script')
-        s.src = 'https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js'
-        s.setAttribute('data-chartjs', '1')
-        s.onload  = resolve
-        s.onerror = reject
-        document.head.appendChild(s)
-      })
-    }
-
-    const Chart = window.Chart
-    Chart.defaults.font.family = 'Inter, system-ui'
-    Chart.defaults.font.size   = 11
-    const gridColor = 'rgba(0,0,0,0.06)'
-    const textColor = '#94a3b8'
-
-    const now   = new Date()
-    const weeks = Array.from({ length: 6 }, (_, i) => {
-      const start = new Date(now)
-      start.setDate(now.getDate() - (5 - i) * 7)
-      const end = new Date(start)
-      end.setDate(start.getDate() + 6)
-      return { label: `S${i + 1}`, start, end }
-    })
-
-    const justifieeIds = new Set(justifs.map(j => {
-      const iri = j.presences?.['@id'] || j.presences || j.presence?.['@id'] || j.presence
-      return typeof iri === 'string' ? iri.split('/').pop() : String(iri)
-    }))
-
-    const absPerWeek  = weeks.map(w =>
-      absences.filter(p => {
-        const d = new Date(p.date || p.createdAt)
-        return d >= w.start && d <= w.end
-      }).length
-    )
-    const justPerWeek = weeks.map(w =>
-      absences.filter(p => {
-        const d    = new Date(p.date || p.createdAt)
-        return d >= w.start && d <= w.end && justifieeIds.has(String(p.id))
-      }).length
-    )
-
-    if (lineRef.current) {
-      if (lineChart.current) { lineChart.current.destroy(); lineChart.current = null }
-      lineChart.current = new Chart(lineRef.current, {
-        type: 'line',
-        data: {
-          labels: weeks.map(w => w.label),
-          datasets: [
-            {
-              label: 'Absences',
-              data: absPerWeek,
-              borderColor: '#e24b4a',
-              backgroundColor: 'rgba(226,75,74,0.08)',
-              borderWidth: 2, pointRadius: 4,
-              pointBackgroundColor: '#e24b4a',
-              tension: 0.4, fill: true
-            },
-            {
-              label: 'Justifiées',
-              data: justPerWeek,
-              borderColor: '#22c55e',
-              backgroundColor: 'rgba(34,197,94,0.06)',
-              borderWidth: 2, pointRadius: 4,
-              pointBackgroundColor: '#22c55e',
-              tension: 0.4, fill: true
-            }
-          ]
-        },
-        options: {
-          responsive: true,
-          maintainAspectRatio: false,
-          plugins: {
-            legend: {
-              position: 'top', align: 'end',
-              labels: { boxWidth: 8, boxHeight: 8, usePointStyle: true, color: textColor, padding: 14 }
-            }
-          },
-          scales: {
-            x: { grid: { color: gridColor }, ticks: { color: textColor } },
-            y: { grid: { color: gridColor }, ticks: { color: textColor }, beginAtZero: true }
-          }
-        }
-      })
-    }
-
-    const nbNonJust = Math.max(absences.length - nbJustifiees, 0)
-    const nbAttente = justifs.filter(j => !j.valide && !j.validated).length
-    const nbRetards = presences.filter(p => p.status === 'retard' || p.statut === 'retard').length
-
-    if (donutRef.current) {
-      if (donutChart.current) { donutChart.current.destroy(); donutChart.current = null }
-      donutChart.current = new Chart(donutRef.current, {
-        type: 'doughnut',
-        data: {
-          labels: ['Non justifiées', 'Justifiées', 'En attente', 'Retards'],
-          datasets: [{
-            data: [nbNonJust, nbJustifiees, nbAttente, nbRetards],
-            backgroundColor: ['#e24b4a', '#22c55e', '#f59e0b', '#6366f1'],
-            borderWidth: 0,
-            hoverOffset: 4
-          }]
-        },
-        options: {
-          responsive: false,
-          cutout: '68%',
-          plugins: { legend: { display: false } }
-        }
-      })
-    }
-  }
-
+  // ── ETAPE 1 : charger les données API
   useEffect(() => {
     const load = async () => {
       try {
@@ -253,14 +139,44 @@ export default function Dashboard() {
           })
         setActivity(recent)
 
-        setLoading(false)
+        // Stocker les données pour les graphes
+        const now   = new Date()
+        const weeks = Array.from({ length: 6 }, (_, i) => {
+          const start = new Date(now)
+          start.setDate(now.getDate() - (5 - i) * 7)
+          const end = new Date(start)
+          end.setDate(start.getDate() + 6)
+          return { label: `S${i + 1}`, start, end }
+        })
 
-        // Construire les graphes APRES le setLoading(false)
-        // pour que les canvas soient visibles dans le DOM
-        await buildCharts(absences, presences, nbJustifiees, justifs)
+        const absPerWeek  = weeks.map(w =>
+          absences.filter(p => {
+            const d = new Date(p.date || p.createdAt)
+            return d >= w.start && d <= w.end
+          }).length
+        )
+        const justPerWeek = weeks.map(w =>
+          absences.filter(p => {
+            const d = new Date(p.date || p.createdAt)
+            return d >= w.start && d <= w.end && justifieeIds.has(String(p.id))
+          }).length
+        )
+
+        const nbNonJust = Math.max(absences.length - nbJustifiees, 0)
+        const nbAttente = justifs.filter(j => !j.valide && !j.validated).length
+
+        setChartData({
+          weekLabels:   weeks.map(w => w.label),
+          absPerWeek,
+          justPerWeek,
+          nbNonJust,
+          nbJustifiees,
+          nbAttente,
+        })
 
       } catch (e) {
         console.error(e)
+      } finally {
         setLoading(false)
       }
     }
@@ -272,6 +188,97 @@ export default function Dashboard() {
       donutChart.current?.destroy()
     }
   }, [])
+
+  // ── ETAPE 2 : construire les graphes APRES que React a rendu les canvas
+  // Ce useEffect se déclenche uniquement quand chartData et loading sont prêts
+  useEffect(() => {
+    if (loading || !chartData) return
+    if (!lineRef.current || !donutRef.current) return
+
+    const gridColor = 'rgba(0,0,0,0.06)'
+    const textColor = '#94a3b8'
+
+    // Graphe LINE
+    if (lineChart.current) {
+      lineChart.current.destroy()
+      lineChart.current = null
+    }
+    lineChart.current = new Chart(lineRef.current, {
+      type: 'line',
+      data: {
+        labels: chartData.weekLabels,
+        datasets: [
+          {
+            label: 'Absences',
+            data: chartData.absPerWeek,
+            borderColor: '#e24b4a',
+            backgroundColor: 'rgba(226,75,74,0.08)',
+            borderWidth: 2,
+            pointRadius: 4,
+            pointBackgroundColor: '#e24b4a',
+            tension: 0.4,
+            fill: true,
+          },
+          {
+            label: 'Justifiées',
+            data: chartData.justPerWeek,
+            borderColor: '#22c55e',
+            backgroundColor: 'rgba(34,197,94,0.06)',
+            borderWidth: 2,
+            pointRadius: 4,
+            pointBackgroundColor: '#22c55e',
+            tension: 0.4,
+            fill: true,
+          },
+        ],
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: {
+          legend: {
+            position: 'top',
+            align: 'end',
+            labels: {
+              boxWidth: 8,
+              boxHeight: 8,
+              usePointStyle: true,
+              color: textColor,
+              padding: 14,
+            },
+          },
+        },
+        scales: {
+          x: { grid: { color: gridColor }, ticks: { color: textColor } },
+          y: { grid: { color: gridColor }, ticks: { color: textColor }, beginAtZero: true },
+        },
+      },
+    })
+
+    // Graphe DONUT
+    if (donutChart.current) {
+      donutChart.current.destroy()
+      donutChart.current = null
+    }
+    donutChart.current = new Chart(donutRef.current, {
+      type: 'doughnut',
+      data: {
+        labels: ['Non justifiées', 'Justifiées', 'En attente', 'Retards'],
+        datasets: [{
+          data: [chartData.nbNonJust, chartData.nbJustifiees, chartData.nbAttente, 0],
+          backgroundColor: ['#e24b4a', '#22c55e', '#f59e0b', '#6366f1'],
+          borderWidth: 0,
+          hoverOffset: 4,
+        }],
+      },
+      options: {
+        responsive: false,
+        cutout: '68%',
+        plugins: { legend: { display: false } },
+      },
+    })
+
+  }, [loading, chartData])  // ← se déclenche APRES le render avec les canvas visibles
 
   const date = new Date().toLocaleDateString('fr-FR', {
     weekday: 'long', day: 'numeric', month: 'long', year: 'numeric'
