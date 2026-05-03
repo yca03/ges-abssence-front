@@ -15,7 +15,6 @@ const normalize = (data) => {
   return data['hydra:member'] || data['member'] || []
 }
 
-// ✅ Détecte une absence selon le champ "status" booléen (false = absent)
 const isAbsent = (p) =>
   p.status === false ||
   p.status === 0 ||
@@ -23,8 +22,8 @@ const isAbsent = (p) =>
   p.statut === 'ABSENT'
 
 export default function Dashboard() {
-  const lineRef  = useRef(null)
-  const donutRef = useRef(null)
+  const lineRef    = useRef(null)
+  const donutRef   = useRef(null)
   const lineChart  = useRef(null)
   const donutChart = useRef(null)
 
@@ -37,140 +36,23 @@ export default function Dashboard() {
   const [absParMatiere, setAbsParMatiere] = useState([])
   const [activity, setActivity]           = useState([])
 
-  useEffect(() => {
-    const load = async () => {
-      try {
-        const [ensRes, etuRes, filRes, matRes, presRes, justRes] = await Promise.all([
-          enseignantService.getAll(),
-          etudiantService.getAll(),
-          filiereService.getAll(),
-          matiereService.getAll(),
-          presenceService.getAll(),
-          justificationService.getAll(),
-        ])
-
-        const enseignants = normalize(ensRes.data)
-        const etudiants   = normalize(etuRes.data)
-        const filieres    = normalize(filRes.data)
-        const matieres    = normalize(matRes.data)
-        const presences   = normalize(presRes.data)
-        const justifs     = normalize(justRes.data)
-
-        // ── Absences (status = false/0)
-        const absences = presences.filter(isAbsent)
-
-        const justifieeIds = new Set(justifs.map(j => {
-          const iri = j.presences?.['@id'] || j.presences || j.presence?.['@id'] || j.presence
-          return typeof iri === 'string' ? iri.split('/').pop() : String(iri)
-        }))
-
-        const nbJustifiees = absences.filter(p => justifieeIds.has(String(p.id))).length
-        const totalPres    = presences.length
-        const tauxPresence = totalPres > 0
-          ? Math.round(((totalPres - absences.length) / totalPres) * 100)
-          : 100
-
-        setStats({
-          enseignants: enseignants.length,
-          etudiants:   etudiants.length,
-          filieres:    filieres.length,
-          absences:    absences.length,
-          justifiees:  nbJustifiees,
-          tauxPresence,
-        })
-
-        // ── Absences par filière
-        // La présence a "filieres" (IRI vers Filiere)
-        const filMap = {}
-        filieres.forEach(f => {
-          filMap[f.id] = { label: f.libelle || f.nom || `Filière ${f.id}`, val: 0 }
-        })
-        absences.forEach(p => {
-          // p.filieres = "/api/filieres/1"
-          const fIri = p.filieres?.['@id'] || p.filieres
-          const fId  = fIri?.toString().split('/').pop()
-          if (fId && filMap[fId]) filMap[fId].val++
-        })
-        const filArr = Object.values(filMap)
-          .filter(f => f.val > 0)
-          .sort((a, b) => b.val - a.val)
-          .slice(0, 6)
-        const maxFil = filArr[0]?.val || 1
-        setAbsParFiliere(filArr.map(f => ({ ...f, pct: Math.round((f.val / maxFil) * 100) })))
-
-        // ── Absences par matière
-        // La présence a "enseignements" (IRI vers Enseignement qui a une matière)
-        const matMap = {}
-        matieres.forEach(m => {
-          matMap[m.id] = { label: m.nom || `Matière ${m.id}`, val: 0 }
-        })
-        absences.forEach(p => {
-          const ensIri = p.enseignements?.['@id'] || p.enseignements
-          const mIri   = p.enseignements?.matiere?.['@id'] || p.enseignements?.matiere
-          const mId    = mIri?.toString().split('/').pop()
-          if (mId && matMap[mId]) matMap[mId].val++
-        })
-        const matArr = Object.values(matMap)
-          .filter(m => m.val > 0)
-          .sort((a, b) => b.val - a.val)
-          .slice(0, 6)
-        const maxMat = matArr[0]?.val || 1
-        setAbsParMatiere(matArr.map(m => ({ ...m, pct: Math.round((m.val / maxMat) * 100) })))
-
-        // ── Activité récente (5 dernières presences)
-        const recent = [...presences]
-          .sort((a, b) => new Date(b.date || b.createdAt || 0) - new Date(a.date || a.createdAt || 0))
-          .slice(0, 5)
-          .map(p => {
-            const absent = isAbsent(p)
-
-            // Les étudiants sont une collection IRI sur la présence
-            const etuIris = Array.isArray(p.etudiants) ? p.etudiants : []
-            const nomEtu  = etuIris.length > 0
-              ? `Étudiant #${etuIris[0]?.toString().split('/').pop()}`
-              : `Présence #${p.id}`
-
-            const dateRaw = p.date || p.createdAt
-            const time    = dateRaw
-              ? new Date(dateRaw).toLocaleDateString('fr-FR', { day: 'numeric', month: 'short' })
-              : '—'
-
-            return {
-              color: absent ? '#e24b4a' : '#22c55e',
-              text:  absent ? 'Absence enregistrée' : 'Présence enregistrée',
-              sub:   nomEtu,
-              time,
-            }
-          })
-        setActivity(recent)
-
-        await buildCharts(absences, presences, nbJustifiees, justifs)
-
-      } catch (e) {
-        console.error(e)
-      } finally {
-        setLoading(false)
-      }
-    }
-
-    load()
-    return () => {
-      lineChart.current?.destroy()
-      donutChart.current?.destroy()
-    }
-  }, [])
-
   const buildCharts = async (absences, presences, nbJustifiees, justifs) => {
+    await new Promise(resolve => setTimeout(resolve, 100))
+
     if (typeof window.Chart === 'undefined') {
-      await new Promise(resolve => {
+      await new Promise((resolve, reject) => {
+        const existing = document.querySelector('script[data-chartjs]')
+        if (existing) { resolve(); return }
         const s = document.createElement('script')
         s.src = 'https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js'
-        s.onload = resolve
+        s.setAttribute('data-chartjs', '1')
+        s.onload  = resolve
+        s.onerror = reject
         document.head.appendChild(s)
       })
     }
 
-    const Chart    = window.Chart
+    const Chart = window.Chart
     Chart.defaults.font.family = 'Inter, system-ui'
     Chart.defaults.font.size   = 11
     const gridColor = 'rgba(0,0,0,0.06)'
@@ -198,13 +80,13 @@ export default function Dashboard() {
     )
     const justPerWeek = weeks.map(w =>
       absences.filter(p => {
-        const d = new Date(p.date || p.createdAt)
+        const d    = new Date(p.date || p.createdAt)
         return d >= w.start && d <= w.end && justifieeIds.has(String(p.id))
       }).length
     )
 
     if (lineRef.current) {
-      if (lineChart.current) lineChart.current.destroy()
+      if (lineChart.current) { lineChart.current.destroy(); lineChart.current = null }
       lineChart.current = new Chart(lineRef.current, {
         type: 'line',
         data: {
@@ -231,7 +113,8 @@ export default function Dashboard() {
           ]
         },
         options: {
-          responsive: true, maintainAspectRatio: false,
+          responsive: true,
+          maintainAspectRatio: false,
           plugins: {
             legend: {
               position: 'top', align: 'end',
@@ -246,39 +129,159 @@ export default function Dashboard() {
       })
     }
 
-    const nbNonJust = absences.length - nbJustifiees
+    const nbNonJust = Math.max(absences.length - nbJustifiees, 0)
     const nbAttente = justifs.filter(j => !j.valide && !j.validated).length
     const nbRetards = presences.filter(p => p.status === 'retard' || p.statut === 'retard').length
 
     if (donutRef.current) {
-      if (donutChart.current) donutChart.current.destroy()
+      if (donutChart.current) { donutChart.current.destroy(); donutChart.current = null }
       donutChart.current = new Chart(donutRef.current, {
         type: 'doughnut',
         data: {
           labels: ['Non justifiées', 'Justifiées', 'En attente', 'Retards'],
           datasets: [{
-            data: [Math.max(nbNonJust, 0), nbJustifiees, nbAttente, nbRetards],
+            data: [nbNonJust, nbJustifiees, nbAttente, nbRetards],
             backgroundColor: ['#e24b4a', '#22c55e', '#f59e0b', '#6366f1'],
-            borderWidth: 0, hoverOffset: 4
+            borderWidth: 0,
+            hoverOffset: 4
           }]
         },
         options: {
-          responsive: false, cutout: '68%',
+          responsive: false,
+          cutout: '68%',
           plugins: { legend: { display: false } }
         }
       })
     }
   }
 
+  useEffect(() => {
+    const load = async () => {
+      try {
+        const [ensRes, etuRes, filRes, matRes, presRes, justRes] = await Promise.all([
+          enseignantService.getAll(),
+          etudiantService.getAll(),
+          filiereService.getAll(),
+          matiereService.getAll(),
+          presenceService.getAll(),
+          justificationService.getAll(),
+        ])
+
+        const enseignants = normalize(ensRes.data)
+        const etudiants   = normalize(etuRes.data)
+        const filieres    = normalize(filRes.data)
+        const matieres    = normalize(matRes.data)
+        const presences   = normalize(presRes.data)
+        const justifs     = normalize(justRes.data)
+
+        const absences = presences.filter(isAbsent)
+
+        const justifieeIds = new Set(justifs.map(j => {
+          const iri = j.presences?.['@id'] || j.presences || j.presence?.['@id'] || j.presence
+          return typeof iri === 'string' ? iri.split('/').pop() : String(iri)
+        }))
+
+        const nbJustifiees = absences.filter(p => justifieeIds.has(String(p.id))).length
+        const totalPres    = presences.length
+        const tauxPresence = totalPres > 0
+          ? Math.round(((totalPres - absences.length) / totalPres) * 100)
+          : 100
+
+        setStats({
+          enseignants: enseignants.length,
+          etudiants:   etudiants.length,
+          filieres:    filieres.length,
+          absences:    absences.length,
+          justifiees:  nbJustifiees,
+          tauxPresence,
+        })
+
+        // Absences par filière
+        const filMap = {}
+        filieres.forEach(f => {
+          filMap[f.id] = { label: f.libelle || f.nom || `Filière ${f.id}`, val: 0 }
+        })
+        absences.forEach(p => {
+          const fIri = p.filieres?.['@id'] || p.filieres
+          const fId  = fIri?.toString().split('/').pop()
+          if (fId && filMap[fId]) filMap[fId].val++
+        })
+        const filArr = Object.values(filMap)
+          .filter(f => f.val > 0)
+          .sort((a, b) => b.val - a.val)
+          .slice(0, 6)
+        const maxFil = filArr[0]?.val || 1
+        setAbsParFiliere(filArr.map(f => ({ ...f, pct: Math.round((f.val / maxFil) * 100) })))
+
+        // Absences par matière
+        const matMap = {}
+        matieres.forEach(m => {
+          matMap[m.id] = { label: m.nom || `Matière ${m.id}`, val: 0 }
+        })
+        absences.forEach(p => {
+          const mIri = p.enseignements?.matiere?.['@id'] || p.enseignements?.matiere
+          const mId  = mIri?.toString().split('/').pop()
+          if (mId && matMap[mId]) matMap[mId].val++
+        })
+        const matArr = Object.values(matMap)
+          .filter(m => m.val > 0)
+          .sort((a, b) => b.val - a.val)
+          .slice(0, 6)
+        const maxMat = matArr[0]?.val || 1
+        setAbsParMatiere(matArr.map(m => ({ ...m, pct: Math.round((m.val / maxMat) * 100) })))
+
+        // Activité récente
+        const recent = [...presences]
+          .sort((a, b) => new Date(b.date || b.createdAt || 0) - new Date(a.date || a.createdAt || 0))
+          .slice(0, 5)
+          .map(p => {
+            const absent  = isAbsent(p)
+            const etuIris = Array.isArray(p.etudiants) ? p.etudiants : []
+            const nomEtu  = etuIris.length > 0
+              ? `Étudiant #${etuIris[0]?.toString().split('/').pop()}`
+              : `Présence #${p.id}`
+            const dateRaw = p.date || p.createdAt
+            const time    = dateRaw
+              ? new Date(dateRaw).toLocaleDateString('fr-FR', { day: 'numeric', month: 'short' })
+              : '—'
+            return {
+              color: absent ? '#e24b4a' : '#22c55e',
+              text:  absent ? 'Absence enregistrée' : 'Présence enregistrée',
+              sub:   nomEtu,
+              time,
+            }
+          })
+        setActivity(recent)
+
+        setLoading(false)
+
+        // Construire les graphes APRES le setLoading(false)
+        // pour que les canvas soient visibles dans le DOM
+        await buildCharts(absences, presences, nbJustifiees, justifs)
+
+      } catch (e) {
+        console.error(e)
+        setLoading(false)
+      }
+    }
+
+    load()
+
+    return () => {
+      lineChart.current?.destroy()
+      donutChart.current?.destroy()
+    }
+  }, [])
+
   const date = new Date().toLocaleDateString('fr-FR', {
     weekday: 'long', day: 'numeric', month: 'long', year: 'numeric'
   })
 
   const statsDisplay = [
-    { label: 'Enseignants actifs', val: loading ? '…' : stats.enseignants, sub: 'actifs',                    color: '#6366f1' },
-    { label: 'Étudiants inscrits', val: loading ? '…' : stats.etudiants,   sub: `${stats.filieres} filières`, color: '#22c55e' },
+    { label: 'Enseignants actifs', val: loading ? '…' : stats.enseignants, sub: 'actifs',                         color: '#6366f1' },
+    { label: 'Étudiants inscrits', val: loading ? '…' : stats.etudiants,   sub: `${stats.filieres} filières`,     color: '#22c55e' },
     { label: 'Absences ce mois',   val: loading ? '…' : stats.absences,    sub: `${stats.justifiees} justifiées`, color: '#f59e0b' },
-    { label: 'Taux de présence',   val: loading ? '…' : `${stats.tauxPresence}%`, sub: 'global',             color: '#06b6d4' },
+    { label: 'Taux de présence',   val: loading ? '…' : `${stats.tauxPresence}%`, sub: 'global',                  color: '#06b6d4' },
   ]
 
   const donutData = [
@@ -290,6 +293,7 @@ export default function Dashboard() {
 
   return (
     <div className="db">
+
       <div className="db-topbar">
         <div>
           <h2>Tableau de bord</h2>
@@ -317,9 +321,9 @@ export default function Dashboard() {
             <span className="db-card-title">Absences par semaine</span>
             <span className="db-card-sub">6 dernières semaines</span>
           </div>
-          <div style={{ height: 160, position: 'relative' }}>
+          <div className="db-chart-box">
             {loading
-              ? <div className="db-skeleton" style={{ height: '100%' }} />
+              ? <div className="db-skeleton db-skeleton-full" />
               : <canvas ref={lineRef} />
             }
           </div>
@@ -332,7 +336,7 @@ export default function Dashboard() {
           </div>
           <div className="db-donut-wrap">
             {loading
-              ? <div className="db-skeleton" style={{ width: 110, height: 110, borderRadius: '50%', flexShrink: 0 }} />
+              ? <div className="db-skeleton db-skeleton-circle" />
               : <canvas ref={donutRef} width="110" height="110" style={{ flexShrink: 0 }} />
             }
             <div className="db-donut-legend">
@@ -349,15 +353,16 @@ export default function Dashboard() {
       </div>
 
       <div className="db-bottom">
+
         <div className="db-card">
           <div className="db-card-head">
             <span className="db-card-title">Absences par filière</span>
           </div>
           <div className="db-bars">
             {loading
-              ? Array(4).fill(0).map((_, i) => <div key={i} className="db-skeleton" style={{ height: 12, borderRadius: 4 }} />)
+              ? Array(4).fill(0).map((_, i) => <div key={i} className="db-skeleton db-skeleton-bar" />)
               : absParFiliere.length === 0
-                ? <p style={{ fontSize: 12, color: 'var(--text2)' }}>Aucune donnée</p>
+                ? <p className="db-empty">Aucune donnée</p>
                 : absParFiliere.map(r => (
                   <div className="db-bar-row" key={r.label}>
                     <span className="db-bar-label">{r.label}</span>
@@ -377,9 +382,9 @@ export default function Dashboard() {
           </div>
           <div className="db-bars">
             {loading
-              ? Array(4).fill(0).map((_, i) => <div key={i} className="db-skeleton" style={{ height: 12, borderRadius: 4 }} />)
+              ? Array(4).fill(0).map((_, i) => <div key={i} className="db-skeleton db-skeleton-bar" />)
               : absParMatiere.length === 0
-                ? <p style={{ fontSize: 12, color: 'var(--text2)' }}>Aucune donnée</p>
+                ? <p className="db-empty">Aucune donnée</p>
                 : absParMatiere.map(r => (
                   <div className="db-bar-row" key={r.label}>
                     <span className="db-bar-label">{r.label}</span>
@@ -399,9 +404,9 @@ export default function Dashboard() {
           </div>
           <div className="db-activity">
             {loading
-              ? Array(4).fill(0).map((_, i) => <div key={i} className="db-skeleton" style={{ height: 14, borderRadius: 4, marginBottom: 10 }} />)
+              ? Array(4).fill(0).map((_, i) => <div key={i} className="db-skeleton db-skeleton-bar" />)
               : activity.length === 0
-                ? <p style={{ fontSize: 12, color: 'var(--text2)' }}>Aucune activité</p>
+                ? <p className="db-empty">Aucune activité</p>
                 : activity.map((a, i) => (
                   <div className="db-act-row" key={i}>
                     <span className="db-act-dot" style={{ background: a.color }} />
@@ -414,6 +419,7 @@ export default function Dashboard() {
             }
           </div>
         </div>
+
       </div>
     </div>
   )
