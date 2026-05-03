@@ -38,14 +38,15 @@ export default function Login({ onLogin }) {
       <div className="lp-card">
 
         <div className="lp-logo">
-          <svg width="22" height="22" viewBox="0 0 40 40" fill="none">
+          <svg width="24" height="24" viewBox="0 0 40 40" fill="none">
             <path d="M12 30L20 12L28 30" stroke="white" strokeWidth="2.8" strokeLinecap="round" strokeLinejoin="round"/>
             <path d="M15 24H25" stroke="white" strokeWidth="2.8" strokeLinecap="round"/>
           </svg>
         </div>
 
-        <h1 className="lp-title">Ges-abs</h1>
+        <h1 className="lp-title">GES-ABS</h1>
         <p className="lp-sub">Connectez-vous à votre espace</p>
+        <div className="lp-divider"></div>
 
         <form onSubmit={handleSubmit} className="lp-form">
 
