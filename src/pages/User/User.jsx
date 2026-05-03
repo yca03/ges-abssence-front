@@ -46,18 +46,14 @@ function getInitials(prenom, nom) {
 export default function Users() {
   const { items, loading, create, update, remove } = useCrud(userService)
 
-  const [modal, setModal]   = useState(false)
-  const [form, setForm]     = useState(EMPTY)
+  const [modal, setModal]     = useState(false)
+  const [form, setForm]       = useState(EMPTY)
   const [editing, setEditing] = useState(null)
-  const [toast, setToast]   = useState(null)
+  const [toast, setToast]     = useState(null)
   const [confirm, setConfirm] = useState(null)
-  const [search, setSearch] = useState('')
+  const [search, setSearch]   = useState('')
 
-  const openCreate = () => {
-    setForm(EMPTY)
-    setEditing(null)
-    setModal(true)
-  }
+  const openCreate = () => { setForm(EMPTY); setEditing(null); setModal(true) }
 
   const openEdit = (u) => {
     setForm({
@@ -77,17 +73,12 @@ export default function Users() {
   const handleSubmit = async () => {
     try {
       const payload = {
-        prenom: form.prenom,
-        nom: form.nom,
-        email: form.email,
-        numero: form.numero,
-        roles: form.roles,
+        prenom: form.prenom, nom: form.nom,
+        email: form.email, numero: form.numero, roles: form.roles,
       }
       if (form.password) payload.password = form.password
-
       if (editing) await update(editing.id, payload)
       else await create(payload)
-
       setModal(false)
       setToast({ msg: editing ? 'Utilisateur modifié !' : 'Utilisateur créé !', type: 'success' })
     } catch {
@@ -114,199 +105,170 @@ export default function Users() {
 
   return (
     <div>
-
-      {/* HEADER */}
       <div className="page-header">
         <h2>Utilisateurs</h2>
         <p>Gérer les comptes utilisateurs</p>
       </div>
 
-      {/* CARD */}
       <div className="card">
-
-        {/* SEARCH + BUTTON */}
         <div className="search-bar">
           <div className="search-input-wrap">
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none"
-              stroke="currentColor" strokeWidth="2">
-              <circle cx="11" cy="11" r="8"/>
-              <line x1="21" y1="21" x2="16.65" y2="16.65"/>
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
             </svg>
-            <input
-              className="search-input"
-              placeholder="Rechercher un utilisateur..."
-              value={search}
-              onChange={e => setSearch(e.target.value)}
-            />
+            <input className="search-input" placeholder="Rechercher un utilisateur..."
+              value={search} onChange={e => setSearch(e.target.value)} />
           </div>
-
           <button className="btn btn-primary" onClick={openCreate}>
-            <svg width="14" height="14" viewBox="0 0 24 24"
-              fill="none" stroke="currentColor" strokeWidth="2.5">
-              <line x1="12" y1="5" x2="12" y2="19"/>
-              <line x1="5" y1="12" x2="19" y2="12"/>
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+              <line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>
             </svg>
             Nouvel utilisateur
           </button>
         </div>
 
-        {/* TABLE */}
         {loading ? (
-          <div style={{ textAlign: 'center', padding: 40, color: 'var(--text2)' }}>
-            Chargement...
-          </div>
+          <div style={{ textAlign: 'center', padding: 40, color: 'var(--text2)' }}>Chargement...</div>
         ) : (
           <div className="table-container">
             <table>
               <thead>
                 <tr>
-                  <th>Utilisateur</th>
-                  <th>Email</th>
-                  <th>Téléphone</th>
-                  <th>Rôle</th>
-                  <th>Actions</th>
+                  <th>Utilisateur</th><th>Email</th><th>Téléphone</th><th>Rôle</th><th>Actions</th>
                 </tr>
               </thead>
               <tbody>
                 {filtered.length === 0 ? (
-                  <tr>
-                    <td colSpan={5}>
-                      <div className="empty-state">
-                        <p>Aucun utilisateur trouvé</p>
-                      </div>
-                    </td>
-                  </tr>
-                ) : (
-                  filtered.map(u => {
-                    const badge = getRoleBadge(u.roles)
-                    return (
-                      <tr key={u.id}>
-                        <td>
-                          <div className="user-cell">
-                            <div className="user-avatar">
-                              {getInitials(u.prenom, u.nom)}
-                            </div>
-                            <div>
-                              <div className="user-name">{u.prenom} {u.nom}</div>
-                              <div className="user-sub">#{u.id}</div>
-                            </div>
+                  <tr><td colSpan={5}><div className="empty-state"><p>Aucun utilisateur trouvé</p></div></td></tr>
+                ) : filtered.map(u => {
+                  const badge = getRoleBadge(u.roles)
+                  return (
+                    <tr key={u.id}>
+                      <td>
+                        <div className="user-cell">
+                          <div className="user-avatar">{getInitials(u.prenom, u.nom)}</div>
+                          <div>
+                            <div className="user-name">{u.prenom} {u.nom}</div>
+                            <div className="user-sub">#{u.id}</div>
                           </div>
-                        </td>
-                        <td>{u.email}</td>
-                        <td>{u.numero || '—'}</td>
-                        <td>
-                          <span className="role-badge"
-                            style={{ background: badge.bg, color: badge.color }}>
-                            {badge.label}
-                          </span>
-                        </td>
-                        <td>
-                          <div style={{ display: 'flex', gap: 6 }}>
-                            <button className="btn-icon" onClick={() => openEdit(u)}>
-                              <svg width="14" height="14" viewBox="0 0 24 24"
-                                fill="none" stroke="currentColor" strokeWidth="2">
-                                <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/>
-                                <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/>
-                              </svg>
-                            </button>
-                            <button className="btn-icon danger" onClick={() => setConfirm(u)}>
-                              <svg width="14" height="14" viewBox="0 0 24 24"
-                                fill="none" stroke="currentColor" strokeWidth="2">
-                                <polyline points="3 6 5 6 21 6"/>
-                                <path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/>
-                              </svg>
-                            </button>
-                          </div>
-                        </td>
-                      </tr>
-                    )
-                  })
-                )}
+                        </div>
+                      </td>
+                      <td>{u.email}</td>
+                      <td>{u.numero || '—'}</td>
+                      <td>
+                        <span className="role-badge" style={{ background: badge.bg, color: badge.color }}>
+                          {badge.label}
+                        </span>
+                      </td>
+                      <td>
+                        <div style={{ display: 'flex', gap: 6 }}>
+                          <button className="btn-icon" onClick={() => openEdit(u)}>
+                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                              <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/>
+                              <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/>
+                            </svg>
+                          </button>
+                          <button className="btn-icon danger" onClick={() => setConfirm(u)}>
+                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                              <polyline points="3 6 5 6 21 6"/>
+                              <path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/>
+                            </svg>
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  )
+                })}
               </tbody>
             </table>
           </div>
         )}
       </div>
 
-      {/* MODAL */}
+      {/* ════════ MODAL — même design que Enseignements ════════ */}
       {modal && (
-        <div className="modal-overlay" onClick={() => setModal(false)}>
-          <div className="modal" onClick={e => e.stopPropagation()}>
+        <div className="esm-overlay" onClick={() => setModal(false)}>
+          <div className="esm-modal" onClick={e => e.stopPropagation()}>
 
-            <div className="modal-header">
-              <span className="modal-title">
+            {/* Header */}
+            <div className="esm-header">
+              <div className="esm-badge">
+                {editing ? 'Modification' : 'Création'}
+              </div>
+              <h2 className="esm-title">
                 {editing ? 'Modifier l\'utilisateur' : 'Nouvel utilisateur'}
-              </span>
-              <button className="btn-icon" onClick={() => setModal(false)}>
-                <svg width="16" height="16" viewBox="0 0 24 24"
-                  fill="none" stroke="currentColor" strokeWidth="2">
-                  <line x1="18" y1="6" x2="6" y2="18"/>
-                  <line x1="6" y1="6" x2="18" y2="18"/>
-                </svg>
-              </button>
+              </h2>
+              <p className="esm-subtitle">
+                {editing
+                  ? 'Mettez à jour les informations du compte'
+                  : 'Remplissez les informations pour créer un compte'}
+              </p>
+              <button className="esm-close" onClick={() => setModal(false)}>✕</button>
             </div>
 
-            <div className="form-grid">
+            {/* Body */}
+            <div className="esm-body">
+              <p className="esm-section-label">Informations personnelles</p>
 
-              <div className="form-grid form-grid-2">
-                <div className="form-group">
-                  <label className="form-label">Prénom *</label>
-                  <input className="form-input" value={form.prenom}
-                    onChange={e => setForm({ ...form, prenom: e.target.value })}
-                    placeholder="ex: Kouassi" />
+              <div className="esm-grid">
+                <div className="esm-field">
+                  <label className="esm-label">Prénom *</label>
+                  <input className="esm-input" value={form.prenom} placeholder="ex: Kouassi"
+                    onChange={e => setForm({ ...form, prenom: e.target.value })} />
                 </div>
-                <div className="form-group">
-                  <label className="form-label">Nom *</label>
-                  <input className="form-input" value={form.nom}
-                    onChange={e => setForm({ ...form, nom: e.target.value })}
-                    placeholder="ex: Diallo" />
+                <div className="esm-field">
+                  <label className="esm-label">Nom *</label>
+                  <input className="esm-input" value={form.nom} placeholder="ex: Diallo"
+                    onChange={e => setForm({ ...form, nom: e.target.value })} />
+                </div>
+                <div className="esm-field" style={{ gridColumn: '1 / -1' }}>
+                  <label className="esm-label">Email *</label>
+                  <input className="esm-input" type="email" value={form.email}
+                    placeholder="utilisateur@example.com"
+                    onChange={e => setForm({ ...form, email: e.target.value })} />
+                </div>
+                <div className="esm-field">
+                  <label className="esm-label">Téléphone *</label>
+                  <input className="esm-input" value={form.numero}
+                    placeholder="ex: +225 07 00 00 00 00"
+                    onChange={e => setForm({ ...form, numero: e.target.value })} />
+                </div>
+                <div className="esm-field">
+                  <label className="esm-label">Rôle</label>
+                  <select className="esm-select"
+                    value={form.roles[0] || 'ROLE_USER'}
+                    onChange={e => setForm({ ...form, roles: [e.target.value] })}>
+                    {ROLE_OPTIONS.map(r => (
+                      <option key={r.value} value={r.value}>{r.label}</option>
+                    ))}
+                  </select>
                 </div>
               </div>
 
-              <div className="form-group">
-                <label className="form-label">Email *</label>
-                <input className="form-input" type="email" value={form.email}
-                  onChange={e => setForm({ ...form, email: e.target.value })}
-                  placeholder="utilisateur@example.com" />
-              </div>
+              <p className="esm-section-label">Sécurité</p>
 
-              <div className="form-group">
-                <label className="form-label">Numéro de téléphone *</label>
-                <input className="form-input" value={form.numero}
-                  onChange={e => setForm({ ...form, numero: e.target.value })}
-                  placeholder="ex: +225 07 00 00 00 00" />
+              <div className="esm-grid">
+                <div className="esm-field" style={{ gridColumn: '1 / -1' }}>
+                  <label className="esm-label">
+                    Mot de passe {editing
+                      ? <span style={{ color: '#94a3b8', fontWeight: 400 }}>(laisser vide = inchangé)</span>
+                      : '*'}
+                  </label>
+                  <input className="esm-input" type="password" value={form.password}
+                    placeholder={editing ? 'Nouveau mot de passe (optionnel)' : 'Mot de passe'}
+                    onChange={e => setForm({ ...form, password: e.target.value })} />
+                </div>
               </div>
-
-              <div className="form-group">
-                <label className="form-label">
-                  Mot de passe {editing && <span style={{ color: 'var(--text2)', fontWeight: 400 }}>(laisser vide = inchangé)</span>}
-                  {!editing && ' *'}
-                </label>
-                <input className="form-input" type="password" value={form.password}
-                  onChange={e => setForm({ ...form, password: e.target.value })}
-                  placeholder={editing ? 'Nouveau mot de passe (optionnel)' : 'Mot de passe'} />
-              </div>
-
-              <div className="form-group">
-                <label className="form-label">Rôle</label>
-                <select className="form-input"
-                  value={form.roles[0] || 'ROLE_USER'}
-                  onChange={e => setForm({ ...form, roles: [e.target.value] })}
-                >
-                  {ROLE_OPTIONS.map(r => (
-                    <option key={r.value} value={r.value}>{r.label}</option>
-                  ))}
-                </select>
-              </div>
-
             </div>
 
-            <div className="modal-footer">
-              <button className="btn btn-secondary" onClick={() => setModal(false)}>
+            {/* Footer */}
+            <div className="esm-footer">
+              <button className="esm-btn-cancel" onClick={() => setModal(false)}>
                 Annuler
               </button>
-              <button className="btn btn-primary" onClick={handleSubmit} disabled={!isFormValid}>
-                {editing ? 'Enregistrer' : 'Créer'}
+              <button className="esm-btn-submit" onClick={handleSubmit} disabled={!isFormValid}
+                style={{ opacity: isFormValid ? 1 : 0.5, cursor: isFormValid ? 'pointer' : 'not-allowed' }}>
+                {editing ? '✏️ Enregistrer' : '✚ Créer l\'utilisateur'}
               </button>
             </div>
 
@@ -314,7 +276,6 @@ export default function Users() {
         </div>
       )}
 
-      {/* CONFIRM */}
       {confirm && (
         <ConfirmDialog
           message={`Supprimer "${confirm.prenom} ${confirm.nom}" ?`}
@@ -323,15 +284,7 @@ export default function Users() {
         />
       )}
 
-      {/* TOAST */}
-      {toast && (
-        <Toast
-          message={toast.msg}
-          type={toast.type}
-          onClose={() => setToast(null)}
-        />
-      )}
-
+      {toast && <Toast message={toast.msg} type={toast.type} onClose={() => setToast(null)} />}
     </div>
   )
 }

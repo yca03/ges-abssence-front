@@ -255,12 +255,12 @@ export default function Etudiants() {
                     <button type="button"
                       className={`etu-sexe-pill ${form.sexe === 'M' ? 'active' : ''}`}
                       onClick={() => setForm({ ...form, sexe: 'M' })}>
-                      👨 Masculin
+                       Masculin
                     </button>
                     <button type="button"
                       className={`etu-sexe-pill ${form.sexe === 'F' ? 'active' : ''}`}
                       onClick={() => setForm({ ...form, sexe: 'F' })}>
-                      👩 Féminin
+                       Féminin
                     </button>
                   </div>
                 </div>
