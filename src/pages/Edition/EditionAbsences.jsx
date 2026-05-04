@@ -4,8 +4,8 @@ import './EditionAbsences.css'
 
 export default function EditionAbsences() {
   const [presences, setPresences] = useState([])
-  const [filieres, setFilieres] = useState([])
-  const [periodes, setPeriodes] = useState([])
+  const [filieres, setFilieres]   = useState([])
+  const [periodes, setPeriodes]   = useState([])
   const [selectedFiliere, setSelectedFiliere] = useState('')
   const [selectedPeriode, setSelectedPeriode] = useState('')
   const [loading, setLoading] = useState(true)
@@ -22,19 +22,56 @@ export default function EditionAbsences() {
     }).finally(() => setLoading(false))
   }, [])
 
+  // ✅ Utilise p.status (booléen) comme dans ton entité PHP
   const absences = presences.filter(p =>
-    p.statut === 'absent' || p.statut === 'ABSENT' || p.statut === false
+    p.status === false || p.status === 0
   )
 
+  // Résoudre le nom d'une filière depuis son IRI
+  const getFiliereName = (iri) => {
+    const id = iri?.toString().split('/').pop()
+    const found = filieres.find(f => f.id?.toString() === id)
+    return found?.nom || found?.libelle || '—'
+  }
+
+  // ✅ Filtre basé sur p.filieres (IRI string) comme dans ton entité PHP
   const filtered = absences.filter(p => {
     const matchFiliere = selectedFiliere
-      ? p.etudiant?.filiere?.toString().includes(`/${selectedFiliere}`)
+      ? (p.filieres?.['@id'] || p.filieres || '')
+          .toString()
+          .split('/').pop() === selectedFiliere
       : true
+
+    // Pas de période sur Presence dans ton entité, filtre ignoré
     const matchPeriode = selectedPeriode
-      ? p.periode?.toString().includes(`/${selectedPeriode}`)
+      ? (p.enseignements?.['@id'] || p.enseignements || '')
+          .toString()
+          .includes(selectedPeriode)
       : true
+
     return matchFiliere && matchPeriode
   })
+
+  // Affichage de la date
+  const formatDate = (raw) => {
+    if (!raw) return '—'
+    return new Date(raw).toLocaleDateString('fr-FR', {
+      day: '2-digit', month: '2-digit', year: 'numeric'
+    })
+  }
+
+  // Récupérer le nom de l'enseignement (matière) depuis l'IRI
+  const getEnseignementLabel = (p) => {
+    const iri = p.enseignements?.['@id'] || p.enseignements
+    if (!iri) return '—'
+    return iri.toString().split('/').pop()
+      ? `Enseignement #${iri.toString().split('/').pop()}`
+      : '—'
+  }
+
+  // Vérifier si la présence est justifiée
+  const isJustifie = (p) =>
+    p.justifications && Array.isArray(p.justifications) && p.justifications.length > 0
 
   return (
     <div className="abs-page">
@@ -44,18 +81,33 @@ export default function EditionAbsences() {
           <p className="abs-subtitle">{filtered.length} absence(s) trouvée(s)</p>
         </div>
         <div className="abs-filters">
-          <select value={selectedFiliere} onChange={e => setSelectedFiliere(e.target.value)} className="abs-select">
+
+          {/* FILTRE FILIÈRE */}
+          <select
+            value={selectedFiliere}
+            onChange={e => setSelectedFiliere(e.target.value)}
+            className="abs-select"
+          >
             <option value="">Toutes les filières</option>
             {filieres.map(f => (
               <option key={f.id} value={f.id}>{f.nom || f.libelle}</option>
             ))}
           </select>
-          <select value={selectedPeriode} onChange={e => setSelectedPeriode(e.target.value)} className="abs-select">
+
+          {/* FILTRE PÉRIODE — basé sur enseignements */}
+          <select
+            value={selectedPeriode}
+            onChange={e => setSelectedPeriode(e.target.value)}
+            className="abs-select"
+          >
             <option value="">Toutes les périodes</option>
             {periodes.map(p => (
-              <option key={p.id} value={p.id}>{p.nom || p.libelle || p.datePeriode}</option>
+              <option key={p.id} value={p.id}>
+                {p.nom || p.libelle || formatDate(p.datePeriode) || `Période ${p.id}`}
+              </option>
             ))}
           </select>
+
         </div>
       </div>
 
@@ -67,35 +119,56 @@ export default function EditionAbsences() {
             <thead>
               <tr>
                 <th>#</th>
-                <th>Étudiant</th>
-                <th>Matière</th>
+                <th>Filière</th>
+                <th>Enseignement</th>
+                <th>Enseignant</th>
                 <th>Date</th>
-                <th>Période</th>
                 <th>Justifié</th>
               </tr>
             </thead>
             <tbody>
               {filtered.length === 0 ? (
-                <tr><td colSpan={6} className="abs-empty">Aucune absence trouvée</td></tr>
+                <tr>
+                  <td colSpan={6} className="abs-empty">
+                    {absences.length === 0
+                      ? 'Aucune absence enregistrée'
+                      : 'Aucune absence pour cette sélection'}
+                  </td>
+                </tr>
               ) : (
-                filtered.map((p, i) => (
-                  <tr key={p.id}>
-                    <td className="abs-num">{i + 1}</td>
-                    <td className="abs-name">
-                      {p.etudiant?.nom || p.etudiant?.prenom
-                        ? `${p.etudiant.nom ?? ''} ${p.etudiant.prenom ?? ''}`.trim()
-                        : '—'}
-                    </td>
-                    <td>{p.enseignement?.matiere?.nom || p.matiere?.nom || '—'}</td>
-                    <td>{p.dateValidation || p.date || '—'}</td>
-                    <td>{p.periode?.nom || p.periode?.libelle || '—'}</td>
-                    <td>
-                      <span className={`abs-status ${p.justifie || p.justification ? 'abs-ok' : 'abs-non'}`}>
-                        {p.justifie || p.justification ? 'Oui' : 'Non'}
-                      </span>
-                    </td>
-                  </tr>
-                ))
+                filtered.map((p, i) => {
+                  const filiereIri = p.filieres?.['@id'] || p.filieres
+                  const enseignantIri = p.enseignants?.['@id'] || p.enseignants
+
+                  return (
+                    <tr key={p.id}>
+                      <td className="abs-num">{i + 1}</td>
+
+                      {/* FILIÈRE */}
+                      <td>{getFiliereName(filiereIri)}</td>
+
+                      {/* ENSEIGNEMENT */}
+                      <td>{getEnseignementLabel(p)}</td>
+
+                      {/* ENSEIGNANT */}
+                      <td>
+                        {enseignantIri
+                          ? `Enseignant #${enseignantIri.toString().split('/').pop()}`
+                          : '—'}
+                      </td>
+
+                      {/* DATE */}
+                      <td>{formatDate(p.date)}</td>
+
+                      {/* JUSTIFIÉ */}
+                      <td>
+                        <span className={`abs-status ${isJustifie(p) ? 'abs-ok' : 'abs-non'}`}>
+                          {isJustifie(p) ? 'Oui' : 'Non'}
+                        </span>
+                      </td>
+                    </tr>
+                  )
+                })
               )}
             </tbody>
           </table>

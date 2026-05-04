@@ -19,18 +19,40 @@ export default function EditionEtudiants() {
 
   const etudiant = etudiants.find(e => e.id?.toString() === selectedEtudiant)
 
+  // ✅ Dans ton entité, Presence a une collection "etudiants" (OneToMany)
+  // L'API retourne etudiants = ["/api/etudiants/4", "/api/etudiants/5", ...]
   const presencesEtudiant = selectedEtudiant
     ? presences.filter(p => {
-        const eId = p.etudiant?.['@id'] || p.etudiant
-        return eId?.toString().includes(`/${selectedEtudiant}`)
+        const etuIris = Array.isArray(p.etudiants) ? p.etudiants : []
+        return etuIris.some(iri =>
+          iri?.toString().split('/').pop() === selectedEtudiant
+        )
       })
     : []
 
-  const absences = presencesEtudiant.filter(p =>
-    p.statut === 'absent' || p.statut === 'ABSENT' || p.statut === false
+  // ✅ status est un booléen : false = absent, true = présent
+  const isAbsentFn = (p) => p.status === false || p.status === 0
+
+  const absences      = presencesEtudiant.filter(isAbsentFn)
+  const justifiees    = absences.filter(p =>
+    Array.isArray(p.justifications) && p.justifications.length > 0
   )
-  const justifiees = absences.filter(p => p.justifie || p.justification)
-  const nonJustifiees = absences.filter(p => !p.justifie && !p.justification)
+  const nonJustifiees = absences.filter(p =>
+    !Array.isArray(p.justifications) || p.justifications.length === 0
+  )
+
+  const formatDate = (raw) => {
+    if (!raw) return '—'
+    return new Date(raw).toLocaleDateString('fr-FR', {
+      day: '2-digit', month: '2-digit', year: 'numeric'
+    })
+  }
+
+  const getEnseignementLabel = (p) => {
+    const iri = p.enseignements?.['@id'] || p.enseignements
+    if (!iri) return '—'
+    return `Enseignement #${iri.toString().split('/').pop()}`
+  }
 
   return (
     <div className="etud-page">
@@ -46,13 +68,16 @@ export default function EditionEtudiants() {
         >
           <option value="">Sélectionner un étudiant</option>
           {etudiants.map(e => (
-            <option key={e.id} value={e.id}>{e.nom} {e.prenom}</option>
+            <option key={e.id} value={e.id}>
+              {e.nom} {e.prenom}
+            </option>
           ))}
         </select>
       </div>
 
       {loading ? (
         <div className="etud-loading">Chargement...</div>
+
       ) : !selectedEtudiant ? (
         <div className="etud-empty-state">
           <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="#bfdbfe" strokeWidth="1.5">
@@ -61,8 +86,10 @@ export default function EditionEtudiants() {
           </svg>
           <p>Sélectionnez un étudiant pour voir sa fiche</p>
         </div>
+
       ) : (
         <>
+          {/* FICHE ÉTUDIANT */}
           {etudiant && (
             <div className="etud-fiche">
               <div className="etud-avatar">
@@ -93,39 +120,56 @@ export default function EditionEtudiants() {
             </div>
           )}
 
+          {/* TABLEAU */}
           <div className="etud-table-wrapper">
             <table className="etud-table">
               <thead>
                 <tr>
                   <th>#</th>
                   <th>Date</th>
-                  <th>Matière</th>
+                  <th>Enseignement</th>
                   <th>Statut</th>
                   <th>Justifié</th>
                 </tr>
               </thead>
               <tbody>
                 {presencesEtudiant.length === 0 ? (
-                  <tr><td colSpan={5} className="etud-empty">Aucune donnée pour cet étudiant</td></tr>
+                  <tr>
+                    <td colSpan={5} className="etud-empty">
+                      Aucune séance trouvée pour cet étudiant
+                    </td>
+                  </tr>
                 ) : (
                   presencesEtudiant.map((p, i) => {
-                    const isAbsent = p.statut === 'absent' || p.statut === 'ABSENT' || p.statut === false
+                    const absent     = isAbsentFn(p)
+                    const justifie   = Array.isArray(p.justifications) && p.justifications.length > 0
+
                     return (
                       <tr key={p.id}>
                         <td className="etud-num">{i + 1}</td>
-                        <td>{p.dateValidation || p.date || '—'}</td>
-                        <td>{p.enseignement?.matiere?.nom || p.matiere?.nom || '—'}</td>
+
+                        {/* DATE */}
+                        <td>{formatDate(p.date)}</td>
+
+                        {/* ENSEIGNEMENT */}
+                        <td>{getEnseignementLabel(p)}</td>
+
+                        {/* STATUT */}
                         <td>
-                          <span className={`etud-status ${isAbsent ? 'etud-non' : 'etud-ok'}`}>
-                            {isAbsent ? 'Absent' : 'Présent'}
+                          <span className={`etud-status ${absent ? 'etud-non' : 'etud-ok'}`}>
+                            {absent ? 'Absent' : 'Présent'}
                           </span>
                         </td>
+
+                        {/* JUSTIFIÉ */}
                         <td>
-                          {isAbsent ? (
-                            <span className={`etud-status ${p.justifie || p.justification ? 'etud-ok' : 'etud-non'}`}>
-                              {p.justifie || p.justification ? 'Oui' : 'Non'}
+                          {absent ? (
+                            <span className={`etud-status ${justifie ? 'etud-ok' : 'etud-non'}`}>
+                              {justifie ? 'Oui' : 'Non'}
                             </span>
-                          ) : '—'}
+                          ) : (
+                            <span style={{ color: '#94a3b8' }}>—</span>
+                          )}
                         </td>
                       </tr>
                     )
